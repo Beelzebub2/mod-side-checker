@@ -24,7 +24,7 @@ Mod Side Checker is a powerful tool that analyzes your Minecraft mod folder and 
    ```
 3. Run the tool with:
    ```bash
-   python -m src.main
+   python main.py
    ```
 
 ## 🚀 Usage
