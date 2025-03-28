@@ -91,6 +91,9 @@ class ModChecker:
                 with self.progress_lock:
                     self.processed_mods.add(name)
                     progress_bar.update(1)
+                    # Update color based on progress
+                    progress = progress_bar.n / progress_bar.total
+                    self.update_progress_color(progress_bar, progress)
                     # Use fixed width for description to prevent size changes
                     progress_bar.set_description(f"Thread {thread_id:<2} {name[:20]:<20}")
                 
@@ -104,6 +107,29 @@ class ModChecker:
                 color_print(f"Error processing mod {name}: {e}", Fore.RED)
         
         return results
+
+    def update_progress_color(self, progress_bar, progress):
+        """Update progress bar color based on completion percentage"""
+        # Calculate color: red (255,0,0) → yellow (255,255,0) → green (0,255,0)
+        if progress < 0.5:
+            # Red to yellow gradient (increase green)
+            r = 255
+            g = int(255 * progress * 2)  # 0 to 255 as progress goes 0 to 0.5
+            b = 0
+        else:
+            # Yellow to green gradient (decrease red)
+            r = int(255 * (1 - progress) * 2)  # 255 to 0 as progress goes 0.5 to 1
+            g = 255
+            b = 0
+            
+        # Format color code to ensure values are in valid range
+        r = max(0, min(255, r))
+        g = max(0, min(255, g))
+        b = max(0, min(255, b))
+        
+        # Set the color directly in the format string
+        color_code = f"\033[38;2;{r};{g};{b}m"
+        progress_bar.bar_format = f"{color_code}  {{desc}}: |{{bar}}| {{percentage:3.0f}}%{Style.RESET_ALL}"
 
     def process_mods(self, max_threads):
         """Process mods using multiple threads with separate progress bars"""
@@ -122,59 +148,70 @@ class ModChecker:
             mod_batches[-2].extend(mod_batches[-1])
             mod_batches.pop()
 
-        # Create progress bars with better colors and fixed width
+        # Create progress bars with pip-style formatting and initial red color
         progress_bars = []
         for i, batch in enumerate(mod_batches):
+            # Start with red color
+            initial_color = "\033[38;2;255;0;0m"  # Red
             progress_bars.append(
                 tqdm(
                     total=len(batch),
                     desc=f"Thread {i+1:<2}",
                     position=i,
                     leave=True,
-                    ncols=80,  # Fixed width
-                    ascii=True,  # Use ASCII characters for better compatibility
+                    ncols=80,
+                    ascii=True,
+                    bar_format=f'{initial_color}  {{desc}}: |{{bar}}| {{percentage:3.0f}}%{Style.RESET_ALL}',
                 )
             )
-        
-        results = []
-        with ThreadPoolExecutor(max_workers=max_threads) as executor:
-            future_to_batch = {
-                executor.submit(
-                    self.process_mod_batch, 
-                    batch, 
-                    i+1, 
-                    progress_bars[i]
-                ): i 
-                for i, batch in enumerate(mod_batches)
-            }
-            
-            for future in as_completed(future_to_batch):
-                batch_results = future.result()
-                results.extend(batch_results)
-        
-        # Close all progress bars
-        for bar in progress_bars:
-            bar.close()
-        
-        # Move cursor to bottom of progress bars
-        print("\n" * (max_threads + 1))
-        
-        return pd.DataFrame(results) if results else None
+            # Initialize with 0% progress color
+            self.update_progress_color(progress_bars[-1], 0)
 
-    @staticmethod
-    def save_filtered_list(mods_df, filter_type="all"):
-            }
+        # Create a clean exit handler for ctrl+c during processing
+        original_sigint_handler = signal.getsignal(signal.SIGINT)
+        
+        def processing_sigint_handler(sig, frame):
+            # Close progress bars
+            for bar in progress_bars:
+                bar.close()
+            # Print newlines to move cursor past progress bars
+            print("\n" * (max_threads + 2))
+            color_print("\n⚠️  Interrupted! Cleaning up threads...", Fore.YELLOW)
+            color_print("✓ Cleanup complete. Exiting...", Fore.GREEN)
+            sys.exit(1)
+        
+        # Set temporary handler during processing
+        signal.signal(signal.SIGINT, processing_sigint_handler)
+        
+        try:
+            results = []
+            with ThreadPoolExecutor(max_workers=max_threads) as executor:
+                future_to_batch = {
+                    executor.submit(
+                        self.process_mod_batch, 
+                        batch, 
+                        i+1, 
+                        progress_bars[i]
+                    ): i 
+                    for i, batch in enumerate(mod_batches)
+                }
+                
+                for future in as_completed(future_to_batch):
+                    try:
+                        batch_results = future.result()
+                        results.extend(batch_results)
+                    except Exception as e:
+                        color_print(f"Error in thread: {e}", Fore.RED)
+        finally:
+            # Restore original SIGINT handler
+            signal.signal(signal.SIGINT, original_sigint_handler)
             
-            for future in as_completed(future_to_batch):
-                batch_results = future.result()
-                results.extend(batch_results)
-        
-        # Close all progress bars
-        for bar in progress_bars:
-            bar.close()
-        
-        # Move cursor to bottom of progress bars
-        print("\n" * (max_threads + 1))
+            # Close all progress bars
+            for bar in progress_bars:
+                bar.close()
+            
+            # Move cursor to bottom of progress bars
+            print("\n" * (max_threads + 1))
         
         return pd.DataFrame(results) if results else None
 
@@ -202,27 +239,23 @@ class ModChecker:
         
         # Save with proper encoding
         mods_filtered.to_csv(filename, index=False, encoding='utf-8')
-        gradient_success = ''.join(gradient_text(f"✓ Saved {len(mods_filtered)} mods to {filename}", (50, 255, 50), (0, 200, 0)))
-        print(f"\n{gradient_success}")
-        gradient_path = ''.join(gradient_text(f"File saved at: {os.path.abspath(filename)}", (147, 88, 254), (68, 166, 247)))
-        print(gradient_path)
+        color_print(f"✓ Saved {len(mods_filtered)} mods to {filename}", Fore.GREEN)
+        color_print(f"File saved at: {os.path.abspath(filename)}", Fore.CYAN)
 
 def print_header():
     ascii_art = """
-
 ███╗   ███╗ ██████╗ ██████╗      ██████╗██╗  ██╗███████╗ ██████╗██╗  ██╗███████╗██████╗ 
 ████╗ ████║██╔═══██╗██╔══██╗    ██╔════╝██║  ██║██╔════╝██╔════╝██║ ██╔╝██╔════╝██╔══██╗
 ██╔████╔██║██║   ██║██║  ██║    ██║     ███████║█████╗  ██║     █████╔╝ █████╗  ██████╔╝
 ██║╚██╔╝██║██║   ██║██║  ██║    ██║     ██╔══██║██╔══╝  ██║     ██╔═██╗ ██╔══╝  ██╔══██╗
 ██║ ╚═╝ ██║╚██████╔╝██████╔╝    ╚██████╗██║  ██║███████╗╚██████╗██║  ██╗███████╗██║  ██║
 ╚═╝     ╚═╝ ╚═════╝ ╚═════╝      ╚═════╝╚═╝  ╚═╝╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
-                                                                                        
     """
-    print(''.join(gradient_text(ascii_art, (147, 88, 254), (68, 166, 247))))
+    color_print(ascii_art, Fore.BLUE)
 
 def clean_exit(sig=None, frame=None):
-    print_gradient("\n⚠️  Caught interrupt signal. Cleaning up...", (255, 165, 0), (255, 69, 0))
-    print_gradient("✓ Cleanup complete. Goodbye!", (50, 255, 50), (0, 200, 0))
+    color_print("\n⚠️  Caught interrupt signal. Cleaning up...", Fore.YELLOW)
+    color_print("✓ Cleanup complete. Goodbye!", Fore.GREEN)
     sys.exit(0)
 
 def main():
@@ -233,43 +266,50 @@ def main():
         
         # Initialize ModChecker
         checker = ModChecker()
-        print_gradient("\nLoading mod data...", (147, 88, 254), (68, 166, 247))
+        color_print("\nLoading mod data...", Fore.CYAN)
         total_mods = checker.load_data()
         
         # Get thread count
         while True:
             try:
-                print_gradient("\n╭─── Thread Configuration ────╮", (147, 88, 254), (68, 166, 247))
-                max_threads = int(input(''.join(gradient_text("│ Number of threads (1-10): ", (147, 88, 254), (68, 166, 247)))))
+                color_print("\n╭─── Thread Configuration ────╮", Fore.CYAN)
+                max_threads = int(input(f"{Fore.CYAN}│ Number of threads (1-10): {Style.RESET_ALL}"))
                 if 1 <= max_threads <= 10:
-                    print_gradient("╰──────────────────────────╯", (147, 88, 254), (68, 166, 247))
+                    color_print("╰──────────────────────────╯", Fore.CYAN)
                     break
-                print_gradient("→ Please enter a number between 1 and 10", (255, 69, 0), (255, 165, 0))
+                color_print("→ Please enter a number between 1 and 10", Fore.YELLOW)
             except ValueError:
-                print_gradient("→ Please enter a valid number", (255, 69, 0), (255, 165, 0))
+                color_print("→ Please enter a valid number", Fore.YELLOW)
         
-        print_gradient(f"\nAnalyzing {total_mods} mods using {max_threads} threads...", (147, 88, 254), (68, 166, 247))
-        mods_df = checker.process_mods(max_threads)
+        color_print(f"\nAnalyzing {total_mods} mods using {max_threads} threads...", Fore.CYAN)
+        # Temporarily disable the main SIGINT handler during processing
+        old_handler = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            mods_df = checker.process_mods(max_threads)
+        finally:
+            # Restore the main SIGINT handler
+            signal.signal(signal.SIGINT, old_handler)
         
         if mods_df is not None:
-            print_gradient("\n╭─── Summary ───────────────╮", (147, 88, 254), (68, 166, 247))
-            print_gradient(f"│ Total mods: {len(mods_df)}", (147, 88, 254), (68, 166, 247))
-            print_gradient("│ Distribution:", (147, 88, 254), (68, 166, 247))
+            color_print("\n╭─── Summary ───────────────╮", Fore.CYAN)
+            color_print(f"│ Total mods: {len(mods_df)}", Fore.CYAN)
+            color_print("│ Distribution:", Fore.CYAN)
             for side, count in mods_df['Side'].value_counts().items():
-                print_gradient(f"│ • {side}: {count}", (147, 88, 254), (68, 166, 247))
-            print_gradient("╰────────────────────────────╯", (147, 88, 254), (68, 166, 247))
+                color_print(f"│ • {side}: {count}", Fore.CYAN)
+            color_print("╰────────────────────────────╯", Fore.CYAN)
             
             while True:
-                print_gradient("\n╭─── Export Options ─────────╮", (147, 88, 254), (68, 166, 247))
-                print_gradient("│ 1. Export all mods", (147, 88, 254), (68, 166, 247))
-                print_gradient("│ 2. Export client-only mods", (147, 88, 254), (68, 166, 247))
-                print_gradient("│ 3. Export server-only mods", (147, 88, 254), (68, 166, 247))
-                print_gradient("│ 4. Export mods for both sides", (147, 88, 254), (68, 166, 247))
-                print_gradient("│ 5. Export all types separately", (147, 88, 254), (68, 166, 247))
-                print_gradient("│ 6. Exit", (147, 88, 254), (68, 166, 247))
-                print_gradient("╰────────────────────────────╯", (147, 88, 254), (68, 166, 247))
+                color_print("\n╭─── Export Options ─────────╮", Fore.CYAN)
+                color_print("│ 1. Export all mods", Fore.CYAN)
+                color_print("│ 2. Export client-only mods", Fore.CYAN)
+                color_print("│ 3. Export server-only mods", Fore.CYAN)
+                color_print("│ 4. Export mods for both sides", Fore.CYAN)
+                color_print("│ 5. Export all types separately", Fore.CYAN)
+                color_print("│ 6. Exit", Fore.CYAN)
+                color_print("╰────────────────────────────╯", Fore.CYAN)
                 
-                choice = input(''.join(gradient_text("\nEnter your choice (1-6): ", (147, 88, 254), (68, 166, 247))))
+                choice = input(f"{Fore.CYAN}\nEnter your choice (1-6): {Style.RESET_ALL}")
                 
                 if choice == '1':
                     checker.save_filtered_list(mods_df, "all")
@@ -285,15 +325,15 @@ def main():
                     checker.save_filtered_list(mods_df, "server")
                     checker.save_filtered_list(mods_df, "both")
                 elif choice == '6':
-                    print_gradient("\nGoodbye!", (50, 255, 50), (0, 200, 0))
+                    color_print("\nGoodbye!", Fore.GREEN)
                     break
                 else:
-                    print_gradient("\nInvalid choice. Please try again.", (255, 69, 0), (255, 165, 0))
+                    color_print("\nInvalid choice. Please try again.", Fore.YELLOW)
         else:
-            print_gradient("No mod data found to process.", (255, 69, 0), (255, 165, 0))
+            color_print("No mod data found to process.", Fore.YELLOW)
     
     except Exception as e:
-        print_gradient(f"\nError: {e}", (255, 69, 0), (255, 165, 0))
+        color_print(f"\nError: {e}", Fore.RED)
         clean_exit()
 
 if __name__ == "__main__":
