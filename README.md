@@ -19,7 +19,8 @@ pip install -r requirements.txt
 
 ## Usage
 
-1. Place your `modrinth.index.json` file in the same directory as `main.py`
+1. Place your `modrinth.index.json` file in the `input` folder
+   - The program will create the folder if it doesn't exist
 2. Run the script:
 ```bash
 python main.py
@@ -27,13 +28,14 @@ python main.py
 3. Choose number of threads (1-10)
 4. Wait for analysis to complete
 5. Select export option from the menu
+6. Find exported CSV files in the `output` folder
 
 ## How it Works
 
 ### Technical Overview
 
 1. **Data Loading**: 
-   - Reads mod data from modrinth.index.json
+   - Reads mod data from input/modrinth.index.json
    - Validates file structure and content
 
 2. **Multi-threading**:
@@ -53,6 +55,8 @@ python main.py
    - Optional: Optional on both sides
 
 ### Output Files
+
+All files are saved to the `output` folder:
 
 - `Lista_Mods_Com_Ambiente.csv`: All mods with their environment info
 - `Lista_Mods_Client.csv`: Client-only mods
