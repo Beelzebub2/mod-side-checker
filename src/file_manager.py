@@ -33,8 +33,7 @@ class FileManager:
         os.makedirs(cls.INPUT_FOLDER, exist_ok=True)
         os.makedirs(cls.OUTPUT_FOLDER, exist_ok=True)
         os.makedirs(cls.TEMP_FOLDER, exist_ok=True)
-        ColorPrinter.print(f"Input folder: {os.path.abspath(cls.INPUT_FOLDER)}", Fore.CYAN)
-        ColorPrinter.print(f"Output folder: {os.path.abspath(cls.OUTPUT_FOLDER)}", Fore.CYAN)
+        # Don't print folder paths here since this method gets called multiple times
     
     @classmethod
     def clean_temp_folder(cls):
@@ -154,6 +153,10 @@ class FileManager:
         # Make sure folders exist
         cls.ensure_folders_exist()
         
+        # Print folder paths only once at the beginning of the process
+        ColorPrinter.print(f"Input folder: {os.path.abspath(cls.INPUT_FOLDER)}", Fore.CYAN)
+        ColorPrinter.print(f"Output folder: {os.path.abspath(cls.OUTPUT_FOLDER)}", Fore.CYAN)
+        
         # First, check if we have a .mrpack file and try to extract it
         mrpack_path = cls.find_mrpack_file()
         if mrpack_path:
@@ -252,37 +255,46 @@ class FileManager:
         pack_mods_dir = os.path.join(pack_temp_dir, "mods")
         os.makedirs(pack_mods_dir, exist_ok=True)
         
-        # Copy the appropriate mods
-        if os.path.exists(mods_dir):
-            for _, mod_row in mods_filtered.iterrows():
-                mod_name = mod_row['Name']
-                
-                # Try different ways the mod might be named in the extracted files
-                possible_filenames = [
-                    mod_name,  # Exact name from index
-                    mod_name.lower(),  # Lowercase variant
-                ]
-                
-                # Also add any jar files that start with the mod name (without version)
-                mod_base_name = mod_name.split('-')[0] if '-' in mod_name else mod_name.split('.jar')[0]
-                
-                found = False
-                for jar_file in os.listdir(mods_dir):
-                    # Check for exact matches
-                    if jar_file in possible_filenames:
-                        shutil.copy2(os.path.join(mods_dir, jar_file), os.path.join(pack_mods_dir, jar_file))
-                        included_mods.append(jar_file)
-                        found = True
-                        break
-                    # Check for files that start with the mod_base_name
-                    elif jar_file.startswith(mod_base_name) and jar_file.endswith('.jar'):
-                        shutil.copy2(os.path.join(mods_dir, jar_file), os.path.join(pack_mods_dir, jar_file))
-                        included_mods.append(jar_file)
-                        found = True
-                        break
-                
-                if not found:
-                    missing_mods.append(mod_name)
+        # Create a progress bar for the modpack creation
+        from tqdm import tqdm
+        with tqdm(total=len(mods_filtered), desc=f"Building {pack_type} pack", 
+                  bar_format='  {desc}: |{bar}| {percentage:3.0f}% [{n_fmt}/{total_fmt}]',
+                  colour='green') as pbar:
+            
+            # Copy the appropriate mods
+            if os.path.exists(mods_dir):
+                for _, mod_row in mods_filtered.iterrows():
+                    mod_name = mod_row['Name']
+                    
+                    # Try different ways the mod might be named in the extracted files
+                    possible_filenames = [
+                        mod_name,  # Exact name from index
+                        mod_name.lower(),  # Lowercase variant
+                    ]
+                    
+                    # Also add any jar files that start with the mod name (without version)
+                    mod_base_name = mod_name.split('-')[0] if '-' in mod_name else mod_name.split('.jar')[0]
+                    
+                    found = False
+                    for jar_file in os.listdir(mods_dir):
+                        # Check for exact matches
+                        if jar_file in possible_filenames:
+                            shutil.copy2(os.path.join(mods_dir, jar_file), os.path.join(pack_mods_dir, jar_file))
+                            included_mods.append(jar_file)
+                            found = True
+                            break
+                        # Check for files that start with the mod_base_name
+                        elif jar_file.startswith(mod_base_name) and jar_file.endswith('.jar'):
+                            shutil.copy2(os.path.join(mods_dir, jar_file), os.path.join(pack_mods_dir, jar_file))
+                            included_mods.append(jar_file)
+                            found = True
+                            break
+                    
+                    if not found:
+                        missing_mods.append(mod_name)
+                    
+                    # Update progress bar
+                    pbar.update(1)
         
         # Create a report file
         report_path = os.path.join(pack_temp_dir, "modpack_report.txt")
@@ -304,6 +316,25 @@ class FileManager:
                 f.write("\nMISSING MODS:\n")
                 for mod in missing_mods:
                     f.write(f"- {mod}\n")
+        
+        # Also create a missing mods file in the output folder
+        if missing_mods:
+            missing_mods_path = os.path.join(cls.OUTPUT_FOLDER, f"{pack_type}_missing_mods.txt")
+            with open(missing_mods_path, 'w', encoding='utf-8') as f:
+                f.write(f"# Missing Mods for {pack_type.upper()}-SIDE MODPACK\n")
+                f.write(f"# Generated on: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write(f"# The following {len(missing_mods)} mods were not found locally and need to be downloaded manually:\n\n")
+                
+                for mod in missing_mods:
+                    # Find the mod's download URL if available
+                    mod_info = mods_df[mods_df['Name'] == mod]
+                    if not mod_info.empty:
+                        download_url = mod_info.iloc[0]['Download URL']
+                        f.write(f"{mod} - {download_url}\n")
+                    else:
+                        f.write(f"{mod}\n")
+            
+            ColorPrinter.print(f"  Created list of {len(missing_mods)} missing mods: {os.path.basename(missing_mods_path)}", Fore.YELLOW)
         
         # Create a README file
         readme_path = os.path.join(pack_temp_dir, "README.md")

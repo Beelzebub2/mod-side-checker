@@ -256,8 +256,8 @@ class ModChecker:
             for bar in progress_bars:
                 bar.close()
             
-            # Move cursor to bottom of progress bars
-            print("\n" * (max_threads + 1))
+            # Move cursor to bottom of progress bars - reduce space
+            print("\n" * (max_threads // 2 + 1))  # Reduced from (max_threads + 1)
             
             # Only show the interrupt message if it was actually interrupted by user
             if was_interrupted:
