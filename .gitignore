@@ -2,6 +2,7 @@
 Input/
 Output/
 temp/
+src/__pycache__/
 
 # Python bytecode
 __pycache__/

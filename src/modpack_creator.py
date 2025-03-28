@@ -5,9 +5,19 @@ import os
 import shutil
 import zipfile
 from colorama import Fore
-from .utils import ColorPrinter
-from .file_manager import FileManager
-from .checker import ModChecker
+
+# Try relative import first, fall back to absolute import if needed
+try:
+    from .utils import ColorPrinter
+    from .file_manager import FileManager
+    from .checker import ModChecker
+except ImportError:
+    import sys
+    import os.path
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from src.utils import ColorPrinter
+    from src.file_manager import FileManager
+    from src.checker import ModChecker
 
 
 class ModpackCreator:
@@ -39,6 +49,15 @@ class ModpackCreator:
             
             # Set data for the checker
             self.checker.set_data(data)
+            
+            # First check if the mods directory exists
+            mods_dir = os.path.join(FileManager.TEMP_FOLDER, 'mods')
+            if not os.path.exists(mods_dir) or not os.listdir(mods_dir):
+                ColorPrinter.print("Warning: No mod files found in the extracted modpack.", Fore.YELLOW)
+                ColorPrinter.print("The pack will be created with info but may not contain actual mod files.", Fore.YELLOW)
+            else:
+                jar_count = len([f for f in os.listdir(mods_dir) if f.endswith('.jar')])
+                ColorPrinter.print(f"Found {jar_count} mod JAR files for packaging", Fore.GREEN)
             
             # Process mods to determine sides
             ColorPrinter.print(f"\nAnalyzing {total_mods} mods using {thread_count} threads...", Fore.CYAN)

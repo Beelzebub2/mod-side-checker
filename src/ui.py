@@ -2,7 +2,15 @@
 User interface elements for the Mod Side Checker.
 """
 from colorama import Fore, Style
-from .utils import ColorPrinter
+
+# Try relative import first, fall back to absolute import if needed
+try:
+    from .utils import ColorPrinter
+except ImportError:
+    import sys
+    import os.path
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from src.utils import ColorPrinter
 
 
 class UserInterface:

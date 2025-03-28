@@ -4,6 +4,12 @@ Analyzes Minecraft mods to determine if they are client-side or server-side.
 """
 import signal
 import sys
+import os
+
+# Add the project root to the Python path if needed
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from colorama import Fore
 

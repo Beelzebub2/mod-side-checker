@@ -13,7 +13,14 @@ from threading import Lock, Event
 from tqdm import tqdm
 from colorama import Fore, Style
 
-from .utils import ColorPrinter
+# Try relative import first, fall back to absolute import if needed
+try:
+    from .utils import ColorPrinter
+except ImportError:
+    import sys
+    import os.path
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    from src.utils import ColorPrinter
 
 
 class ModChecker:
@@ -165,18 +172,6 @@ class ModChecker:
         color_code = f"\033[38;2;{r};{g};{b}m"
         progress_bar.bar_format = f"{color_code}  {{desc}}: |{{bar}}| {{percentage:3.0f}}%{Style.RESET_ALL}"
     
-    def keyboard_interrupt_monitor(self):
-        """Monitor for keyboard interrupts in a separate thread."""
-        while not self.stop_event.is_set():
-            try:
-                # Short sleep to allow interruption
-                time.sleep(0.1)
-            except KeyboardInterrupt:
-                # Signal all threads to stop processing
-                self.stop_event.set()
-                ColorPrinter.print("\nKeyboard interrupt detected. Stopping gracefully...", Fore.YELLOW)
-                break
-    
     def process_mods(self, max_threads):
         """
         Process mods using multiple threads with separate progress bars.
@@ -190,10 +185,8 @@ class ModChecker:
         # Reset stop event
         self.stop_event.clear()
         
-        # Create a thread to monitor for keyboard interrupts
-        interrupt_monitor = threading.Thread(target=self.keyboard_interrupt_monitor)
-        interrupt_monitor.daemon = True
-        interrupt_monitor.start()
+        # We'll handle keyboard interrupts more directly at the executor level
+        # rather than with a separate monitoring thread
         
         mods_list = self.data.get('files', [])
         total_mods = len(mods_list)
@@ -229,6 +222,9 @@ class ModChecker:
             # Initialize with 0% progress color
             self.update_progress_color(progress_bars[-1], 0)
 
+        # Variable to track if we were truly interrupted
+        was_interrupted = False
+        
         try:
             results = []
             with ThreadPoolExecutor(max_workers=max_threads) as executor:
@@ -242,30 +238,32 @@ class ModChecker:
                     for i, batch in enumerate(mod_batches)
                 }
                 
+                # Wait for all tasks to complete
                 for future in as_completed(future_to_batch):
                     try:
                         batch_results = future.result()
                         results.extend(batch_results)
                     except Exception as e:
                         ColorPrinter.print(f"Error in thread: {e}", Fore.RED)
-                        
-                    # Exit if stop event is set
-                    if self.stop_event.is_set():
-                        executor.shutdown(wait=False)
-                        break
+        except KeyboardInterrupt:
+            # This will catch actual keyboard interrupts
+            was_interrupted = True
+            ColorPrinter.print("\nKeyboard interrupt detected. Stopping processing...", Fore.YELLOW)
+            self.stop_event.set()  # Signal all threads to stop at next opportunity
+            # Don't re-raise the exception, let the cleanup proceed
         finally:
-            # Stop the monitor thread
-            self.stop_event.set()
-            
-            # Close all progress bars
+            # Clean up
             for bar in progress_bars:
                 bar.close()
             
             # Move cursor to bottom of progress bars
             print("\n" * (max_threads + 1))
             
-            # Check if interrupted
-            if self.stop_event.is_set():
+            # Only show the interrupt message if it was actually interrupted by user
+            if was_interrupted:
                 ColorPrinter.print("Stopped due to user interrupt. Partial results available.", Fore.YELLOW)
         
-        return pd.DataFrame(results) if results else None
+        df = pd.DataFrame(results) if results else None
+        
+        # If we have results, even partial ones, return them
+        return df
