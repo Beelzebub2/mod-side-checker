@@ -4,7 +4,7 @@ import os
 import requests
 import time
 from urllib.parse import urlparse
-from colorama import init, Fore, Back, Style
+from colorama import init, Fore, Style
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
@@ -14,18 +14,9 @@ import sys
 # Initialize colorama
 init()
 
-def gradient_text(text, start_color=(255, 0, 0), end_color=(0, 0, 255)):
-    """Create gradient colored text"""
-    length = len(text)
-    for i, char in enumerate(text):
-        r = int(start_color[0] + (end_color[0] - start_color[0]) * i / length)
-        g = int(start_color[1] + (end_color[1] - start_color[1]) * i / length)
-        b = int(start_color[2] + (end_color[2] - start_color[2]) * i / length)
-        yield f"\033[38;2;{r};{g};{b}m{char}"
-
-def print_gradient(text, start_color=(255, 0, 0), end_color=(0, 0, 255)):
-    """Print text with gradient color"""
-    print(''.join(gradient_text(text, start_color, end_color)) + Style.RESET_ALL)
+def color_print(text, color=Fore.WHITE):
+    """Print colored text using Colorama colors"""
+    print(f"{color}{text}{Style.RESET_ALL}")
 
 class ModChecker:
     def __init__(self):
@@ -40,7 +31,7 @@ class ModChecker:
         with open(json_path, 'r', encoding='utf-8') as file:
             self.data = json.load(file)
         total_mods = len(self.data.get('files', []))
-        print_gradient(f"Found {total_mods} mods to process", (147, 88, 254), (68, 166, 247))
+        color_print(f"Found {total_mods} mods to process", Fore.CYAN)
         return total_mods
 
     def get_mod_environment(self, download_url):
@@ -78,7 +69,7 @@ class ModChecker:
             
             return "Unknown"
         except Exception as e:
-            print(f"{Fore.RED}Error fetching mod info for {download_url}: {e}{Style.RESET_ALL}")
+            color_print(f"Error fetching mod info for {download_url}: {e}", Fore.RED)
             return "Unknown"
 
     def process_mod_batch(self, mods_batch, thread_id, progress_bar):
@@ -100,7 +91,8 @@ class ModChecker:
                 with self.progress_lock:
                     self.processed_mods.add(name)
                     progress_bar.update(1)
-                    progress_bar.set_description(f"Thread {thread_id}: {name[:30]}...")
+                    # Use fixed width for description to prevent size changes
+                    progress_bar.set_description(f"Thread {thread_id:<2} {name[:20]:<20}")
                 
                 results.append({
                     'Name': name,
@@ -109,7 +101,7 @@ class ModChecker:
                 })
                 
             except Exception as e:
-                print(f"{Fore.RED}Error processing mod {name}: {e}{Style.RESET_ALL}")
+                color_print(f"Error processing mod {name}: {e}", Fore.RED)
         
         return results
 
@@ -129,15 +121,20 @@ class ModChecker:
         if len(mod_batches) > max_threads:
             mod_batches[-2].extend(mod_batches[-1])
             mod_batches.pop()
-        
-        # Create progress bars for each thread
-        progress_bars = [
-            tqdm(total=len(batch), 
-                 desc=f"Thread {i+1}",
-                 position=i,
-                 leave=True)
-            for i, batch in enumerate(mod_batches)
-        ]
+
+        # Create progress bars with better colors and fixed width
+        progress_bars = []
+        for i, batch in enumerate(mod_batches):
+            progress_bars.append(
+                tqdm(
+                    total=len(batch),
+                    desc=f"Thread {i+1:<2}",
+                    position=i,
+                    leave=True,
+                    ncols=80,  # Fixed width
+                    ascii=True,  # Use ASCII characters for better compatibility
+                )
+            )
         
         results = []
         with ThreadPoolExecutor(max_workers=max_threads) as executor:
@@ -149,6 +146,23 @@ class ModChecker:
                     progress_bars[i]
                 ): i 
                 for i, batch in enumerate(mod_batches)
+            }
+            
+            for future in as_completed(future_to_batch):
+                batch_results = future.result()
+                results.extend(batch_results)
+        
+        # Close all progress bars
+        for bar in progress_bars:
+            bar.close()
+        
+        # Move cursor to bottom of progress bars
+        print("\n" * (max_threads + 1))
+        
+        return pd.DataFrame(results) if results else None
+
+    @staticmethod
+    def save_filtered_list(mods_df, filter_type="all"):
             }
             
             for future in as_completed(future_to_batch):
