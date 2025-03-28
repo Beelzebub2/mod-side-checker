@@ -2,7 +2,7 @@
 
 <div align="center">
   
-![Mod Side Checker Banner](https://i.imgur.com/QJcyBTk.png)
+![Mod Side Checker Banner](https://i.imgur.com/nQvIhUu.png)
 
 *Quickly determine if your Minecraft mods are client-side, server-side, or both*
 
