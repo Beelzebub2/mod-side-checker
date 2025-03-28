@@ -1,10 +1,10 @@
-# 🧩 Mod Side Checker
+# 🧩 Modrinth Tools
 
 <div align="center">
   
-![Mod Side Checker Banner](https://i.imgur.com/nQvIhUu.png)
+![Modrinth Tools Banner](https://i.imgur.com/rt7up4c.png)
 
-*Quickly determine if your Minecraft mods are client-side, server-side, or both*
+*A collection of utilities for Modrinth, including mod environment checking*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Made for Modrinth](https://img.shields.io/badge/Made%20for-Modrinth-1bd96a)](https://modrinth.com)
@@ -13,7 +13,7 @@
 
 ## ✨ Overview
 
-Mod Side Checker is a powerful tool that analyzes your Minecraft mod folder and tells you which mods need to be installed on the client, server, or both. Perfect for server administrators and modpack creators who want to optimize their mod distribution.
+Modrinth Tools is a powerful toolkit that helps you manage your Minecraft mods. The environment checker analyzes your mod folder and tells you which mods need to be installed on the client, server, or both. Perfect for server administrators and modpack creators who want to optimize their mod distribution.
 
 ## 📥 Installation
 
@@ -42,7 +42,7 @@ The tool can be customized through the `config.json` file which is created on fi
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `user_agent` | User agent sent with API requests | `ModEnvironmentChecker/1.0` |
+| `user_agent` | User agent sent with API requests | `ModrinthTools/1.0` |
 | `request_delay` | Delay between API requests (seconds) | `0.5` |
 
 ### UI Configuration
