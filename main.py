@@ -18,6 +18,7 @@ from src.ui import UserInterface
 from src.file_manager import FileManager
 from src.checker import ModChecker
 from src.modpack_creator import ModpackCreator
+from src.config_manager import ConfigManager
 
 
 class Application:
@@ -126,18 +127,21 @@ class Application:
                     self.run_modpack_creator()
                 
                 # Ask if the user wants to exit
-                ColorPrinter.print("\nReturn to the main menu? (y/n): ", Fore.CYAN, end='')
+                ColorPrinter.print("Return to the main menu? (y/n): ", Fore.CYAN, end='')
                 if input().lower() != 'y':
-                    ColorPrinter.print("\nGoodbye!", Fore.GREEN)
+                    ColorPrinter.print("Goodbye!", Fore.GREEN)
                     break
         
         except Exception as e:
-            ColorPrinter.print(f"\nError: {e}", Fore.RED)
+            ColorPrinter.print(f"Error: {e}", Fore.RED)
             SignalHandler.clean_exit()
 
 
 def main():
     """Main entry point."""
+    # Load configuration at startup
+    config = ConfigManager.load_config()
+    
     # Set up signal handler for clean exit
     SignalHandler.setup_signal_handling()
     

@@ -1,0 +1,25 @@
+{
+  "folders": {
+    "input": "input",
+    "output": "output",
+    "temp": "temp"
+  },
+  "threading": {
+    "max_threads": 10,
+    "recommended_max": 6,
+    "warning": "Using more than 6 threads may cause UI stability issues depending on your system"
+  },
+  "api": {
+    "request_delay": 0.5,
+    "user_agent": "ModEnvironmentChecker/1.0"
+  },
+  "ui": {
+    "progress_bar_width": 80,
+    "use_ascii_bars": true
+  },
+  "files": {
+    "mod_index": "modrinth.index.json",
+    "server_pack": "server_pack.zip",
+    "client_pack": "client_pack.zip"
+  }
+}

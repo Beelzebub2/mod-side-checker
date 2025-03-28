@@ -6,11 +6,13 @@ from colorama import Fore, Style
 # Try relative import first, fall back to absolute import if needed
 try:
     from .utils import ColorPrinter
+    from .config_manager import ConfigManager
 except ImportError:
     import sys
     import os.path
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     from src.utils import ColorPrinter
+    from src.config_manager import ConfigManager
 
 
 class UserInterface:
@@ -58,14 +60,24 @@ class UserInterface:
         Returns:
             int: Number of threads to use
         """
+        # Get thread limits from config
+        max_allowed = ConfigManager.get('threading', 'max_threads', default=10)
+        recommended_max = ConfigManager.get('threading', 'recommended_max', default=6)
+        warning = ConfigManager.get('threading', 'warning', default='')
+        
         while True:
             try:
                 ColorPrinter.print("\n╭─── Thread Configuration ────╮", Fore.CYAN)
-                max_threads = int(input(f"{Fore.CYAN}│ Number of threads (1-10): {Style.RESET_ALL}"))
-                if 1 <= max_threads <= 10:
+                ColorPrinter.print(f"│ Recommended max: {recommended_max}        │", Fore.CYAN)
+                if warning:
+                    ColorPrinter.print(f"│ {warning[:30]}... │", Fore.YELLOW)
+                max_threads = int(input(f"{Fore.CYAN}│ Number of threads (1-{max_allowed}): {Style.RESET_ALL}"))
+                if 1 <= max_threads <= max_allowed:
+                    if max_threads > recommended_max:
+                        ColorPrinter.print(f"│ Note: Using {max_threads} threads may affect UI stability", Fore.YELLOW)
                     ColorPrinter.print("╰──────────────────────────╯", Fore.CYAN)
                     return max_threads
-                ColorPrinter.print("→ Please enter a number between 1 and 10", Fore.YELLOW)
+                ColorPrinter.print(f"→ Please enter a number between 1 and {max_allowed}", Fore.YELLOW)
             except ValueError:
                 ColorPrinter.print("→ Please enter a valid number", Fore.YELLOW)
 

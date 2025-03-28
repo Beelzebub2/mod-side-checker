@@ -12,35 +12,59 @@ from colorama import Fore
 # Try relative import first, fall back to absolute import if needed
 try:
     from .utils import ColorPrinter
+    from .config_manager import ConfigManager
 except ImportError:
     import sys
     import os.path
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     from src.utils import ColorPrinter
+    from src.config_manager import ConfigManager
 
 
 class FileManager:
     """Class for managing file operations."""
     
-    # Define folder paths
-    INPUT_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "input")
-    OUTPUT_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "output")
-    TEMP_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "temp")
+    # Define folder paths from config
+    @classmethod
+    def _get_folder_paths(cls):
+        config = ConfigManager.load_config()
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        
+        return {
+            'input': os.path.join(base_dir, config['folders']['input']),
+            'output': os.path.join(base_dir, config['folders']['output']),
+            'temp': os.path.join(base_dir, config['folders']['temp'])
+        }
+    
+    @classmethod
+    def get_input_folder(cls):
+        """Get the input folder path from config."""
+        return cls._get_folder_paths()['input']
+    
+    @classmethod
+    def get_output_folder(cls):
+        """Get the output folder path from config."""
+        return cls._get_folder_paths()['output']
+    
+    @classmethod
+    def get_temp_folder(cls):
+        """Get the temp folder path from config."""
+        return cls._get_folder_paths()['temp']
     
     @classmethod
     def ensure_folders_exist(cls):
         """Ensure input and output folders exist."""
-        os.makedirs(cls.INPUT_FOLDER, exist_ok=True)
-        os.makedirs(cls.OUTPUT_FOLDER, exist_ok=True)
-        os.makedirs(cls.TEMP_FOLDER, exist_ok=True)
-        # Don't print folder paths here since this method gets called multiple times
+        folders = cls._get_folder_paths()
+        for folder in folders.values():
+            os.makedirs(folder, exist_ok=True)
     
     @classmethod
     def clean_temp_folder(cls):
         """Clean up temporary folder."""
-        if os.path.exists(cls.TEMP_FOLDER):
-            shutil.rmtree(cls.TEMP_FOLDER)
-            os.makedirs(cls.TEMP_FOLDER, exist_ok=True)
+        temp_folder = cls.get_temp_folder()
+        if os.path.exists(temp_folder):
+            shutil.rmtree(temp_folder)
+            os.makedirs(temp_folder, exist_ok=True)
     
     @classmethod
     def extract_mrpack(cls, mrpack_file):
@@ -54,24 +78,26 @@ class FileManager:
             str: Path to the extracted modrinth.index.json file
         """
         cls.clean_temp_folder()
+        temp_folder = cls.get_temp_folder()
         
         try:
             # Extract the .mrpack file (it's a zip file)
             with zipfile.ZipFile(mrpack_file, 'r') as zip_ref:
-                zip_ref.extractall(cls.TEMP_FOLDER)
+                zip_ref.extractall(temp_folder)
             
             # Path to the extracted modrinth.index.json
-            json_path = os.path.join(cls.TEMP_FOLDER, 'modrinth.index.json')
+            mod_index = ConfigManager.get('files', 'mod_index', default='modrinth.index.json')
+            json_path = os.path.join(temp_folder, mod_index)
             
             if not os.path.exists(json_path):
-                ColorPrinter.print(f"modrinth.index.json not found in the .mrpack file!", Fore.RED)
+                ColorPrinter.print(f"{mod_index} not found in the .mrpack file!", Fore.RED)
                 return None
             
             # Look for mods.zip in the overrides folder
-            overrides_dir = os.path.join(cls.TEMP_FOLDER, 'overrides')
+            overrides_dir = os.path.join(temp_folder, 'overrides')
             if os.path.exists(overrides_dir):
                 mods_zip = os.path.join(overrides_dir, 'mods.zip')
-                mods_dir = os.path.join(cls.TEMP_FOLDER, 'mods')  # Use a direct mods folder for easier access
+                mods_dir = os.path.join(temp_folder, 'mods')  # Use a direct mods folder for easier access
                 
                 # Create mods directory if it doesn't exist
                 os.makedirs(mods_dir, exist_ok=True)
@@ -116,7 +142,7 @@ class FileManager:
                             ColorPrinter.print(f"✓ Found and copied {jar_count} mod files from overrides/mods", Fore.GREEN)
             
             return json_path
-        
+            
         except Exception as e:
             ColorPrinter.print(f"Error extracting .mrpack file: {e}", Fore.RED)
             return None
@@ -130,17 +156,18 @@ class FileManager:
             str: Path to the .mrpack file or None if not found
         """
         cls.ensure_folders_exist()
+        input_folder = cls.get_input_folder()
         
-        for filename in os.listdir(cls.INPUT_FOLDER):
+        for filename in os.listdir(input_folder):
             if filename.endswith(".mrpack"):
-                return os.path.join(cls.INPUT_FOLDER, filename)
+                return os.path.join(input_folder, filename)
         
         ColorPrinter.print("No .mrpack file found in the input folder!", Fore.RED)
-        ColorPrinter.print(f"Please place a .mrpack file in: {os.path.abspath(cls.INPUT_FOLDER)}", Fore.YELLOW)
+        ColorPrinter.print(f"Please place a .mrpack file in: {os.path.abspath(input_folder)}", Fore.YELLOW)
         return None
     
     @classmethod
-    def load_mod_data(cls, filename="modrinth.index.json"):
+    def load_mod_data(cls, filename=None):
         """
         Load mod data from the JSON file in input folder.
         
@@ -150,12 +177,18 @@ class FileManager:
         Returns:
             tuple: (data_dict, total_mods)
         """
+        # Get filename from config or use the provided filename
+        if filename is None:
+            filename = ConfigManager.get('files', 'mod_index', default='modrinth.index.json')
+            
         # Make sure folders exist
         cls.ensure_folders_exist()
+        input_folder = cls.get_input_folder()
+        output_folder = cls.get_output_folder()
         
         # Print folder paths only once at the beginning of the process
-        ColorPrinter.print(f"Input folder: {os.path.abspath(cls.INPUT_FOLDER)}", Fore.CYAN)
-        ColorPrinter.print(f"Output folder: {os.path.abspath(cls.OUTPUT_FOLDER)}", Fore.CYAN)
+        ColorPrinter.print(f"Input folder: {os.path.abspath(input_folder)}", Fore.CYAN)
+        ColorPrinter.print(f"Output folder: {os.path.abspath(output_folder)}", Fore.CYAN)
         
         # First, check if we have a .mrpack file and try to extract it
         mrpack_path = cls.find_mrpack_file()
@@ -163,16 +196,16 @@ class FileManager:
             ColorPrinter.print(f"Found .mrpack file: {os.path.basename(mrpack_path)}", Fore.GREEN)
             json_path = cls.extract_mrpack(mrpack_path)
             if json_path:
-                ColorPrinter.print(f"Extracted modrinth.index.json from .mrpack", Fore.GREEN)
+                ColorPrinter.print(f"Extracted {filename} from .mrpack", Fore.GREEN)
                 # Copy the file to the input folder for future use
-                shutil.copy(json_path, os.path.join(cls.INPUT_FOLDER, filename))
+                shutil.copy(json_path, os.path.join(input_folder, filename))
         
         # Look for the file in input folder
-        json_path = os.path.join(cls.INPUT_FOLDER, filename)
+        json_path = os.path.join(input_folder, filename)
         
         if not os.path.exists(json_path):
             ColorPrinter.print(f"File {filename} not found in input folder!", Fore.RED)
-            ColorPrinter.print(f"Please place your {filename} file in: {os.path.abspath(cls.INPUT_FOLDER)}", Fore.YELLOW)
+            ColorPrinter.print(f"Please place your {filename} file in: {os.path.abspath(input_folder)}", Fore.YELLOW)
             return None, 0
         
         with open(json_path, 'r', encoding='utf-8') as file:
@@ -209,7 +242,7 @@ class FileManager:
             mods_filtered = mods_df[mods_df['Side'] == 'Both']
         
         # Use output folder for saving files
-        output_path = os.path.join(cls.OUTPUT_FOLDER, filename)
+        output_path = os.path.join(cls.get_output_folder(), filename)
         
         # Save with proper encoding
         mods_filtered.to_csv(output_path, index=False, encoding='utf-8')
@@ -241,17 +274,17 @@ class FileManager:
             ColorPrinter.print(f"Creating client-side modpack with {len(mods_filtered)} mods...", Fore.CYAN)
         
         # Path to the output zip file
-        output_path = os.path.join(cls.OUTPUT_FOLDER, output_filename)
+        output_path = os.path.join(cls.get_output_folder(), output_filename)
         
         # Path to the extracted mods directory
-        mods_dir = os.path.join(cls.TEMP_FOLDER, 'mods')
+        mods_dir = cls.get_temp_folder()
         
         # Track which mods were found and included
         included_mods = []
         missing_mods = []
         
         # Create a temporary directory for organizing the pack
-        pack_temp_dir = os.path.join(cls.TEMP_FOLDER, f"{pack_type}_pack")
+        pack_temp_dir = os.path.join(cls.get_temp_folder(), f"{pack_type}_pack")
         pack_mods_dir = os.path.join(pack_temp_dir, "mods")
         os.makedirs(pack_mods_dir, exist_ok=True)
         
@@ -319,7 +352,7 @@ class FileManager:
         
         # Also create a missing mods file in the output folder
         if missing_mods:
-            missing_mods_path = os.path.join(cls.OUTPUT_FOLDER, f"{pack_type}_missing_mods.txt")
+            missing_mods_path = os.path.join(cls.get_output_folder(), f"{pack_type}_missing_mods.txt")
             with open(missing_mods_path, 'w', encoding='utf-8') as f:
                 f.write(f"# Missing Mods for {pack_type.upper()}-SIDE MODPACK\n")
                 f.write(f"# Generated on: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")

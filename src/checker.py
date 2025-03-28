@@ -16,11 +16,13 @@ from colorama import Fore, Style
 # Try relative import first, fall back to absolute import if needed
 try:
     from .utils import ColorPrinter
+    from .config_manager import ConfigManager
 except ImportError:
     import sys
     import os.path
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     from src.utils import ColorPrinter
+    from src.config_manager import ConfigManager
 
 
 class ModChecker:
@@ -65,12 +67,14 @@ class ModChecker:
                 return "Unknown"
             
             headers = {
-                "User-Agent": "ModEnvironmentChecker/1.0",
+                "User-Agent": ConfigManager.get('api', 'user_agent', default="ModEnvironmentChecker/1.0"),
                 "Accept": "application/json"
             }
             api_url = f"https://api.modrinth.com/v2/project/{project_id}"
             response = requests.get(api_url, headers=headers)
-            time.sleep(0.5)
+            
+            # Use request delay from config
+            time.sleep(ConfigManager.get('api', 'request_delay', default=0.5))
             
             if response.status_code == 200:
                 project_data = response.json()
@@ -203,7 +207,11 @@ class ModChecker:
             mod_batches[-2].extend(mod_batches[-1])
             mod_batches.pop()
 
-        # Create progress bars with pip-style formatting and initial red color
+        # Get UI settings from config
+        progress_bar_width = ConfigManager.get('ui', 'progress_bar_width', default=80)
+        use_ascii_bars = ConfigManager.get('ui', 'use_ascii_bars', default=True)
+        
+        # Create progress bars with settings from config
         progress_bars = []
         for i, batch in enumerate(mod_batches):
             # Start with red color
@@ -214,8 +222,8 @@ class ModChecker:
                     desc=f"Thread {i+1:<2}",
                     position=i,
                     leave=True,
-                    ncols=80,
-                    ascii=True,
+                    ncols=progress_bar_width,
+                    ascii=use_ascii_bars,
                     bar_format=f'{initial_color}  {{desc}}: |{{bar}}| {{percentage:3.0f}}%{Style.RESET_ALL}',
                 )
             )
