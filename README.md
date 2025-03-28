@@ -70,28 +70,6 @@ The tool can be customized through the `config.json` file which is created on fi
 - **Smart Detection**: Automatically identifies mod folders from popular launchers
 - **Configurable**: Customize colors, performance, and more  
 
-## 🔄 Example Output
-
-```
-CLIENT-SIDE ONLY (15 mods):
-- 3D Skin Layers
-- Animatica
-- Better Third Person
-- Iris Shaders
-- Mod Menu
-
-SERVER-SIDE ONLY (3 mods):
-- Carpet
-- Lithium
-- ServerCore
-
-BOTH SIDES REQUIRED (12 mods):
-- Create
-- Fabric API
-- Origins
-- Terralith
-```
-
 ## 📜 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
