@@ -22,6 +22,27 @@ class UserInterface:
         ColorPrinter.print(ascii_art, Fore.BLUE)
 
     @staticmethod
+    def get_application_mode():
+        """
+        Get the application mode from user.
+        
+        Returns:
+            str: Selected mode ('1' for Checker, '2' for Modpack Creator)
+        """
+        while True:
+            ColorPrinter.print("\n╭─── Select Mode ─────────────╮", Fore.CYAN)
+            ColorPrinter.print("│ 1. Mod Side Checker        │", Fore.CYAN)
+            ColorPrinter.print("│ 2. Modpack Creator         │", Fore.CYAN)
+            ColorPrinter.print("╰────────────────────────────╯", Fore.CYAN)
+            
+            choice = input(f"{Fore.CYAN}\nEnter your choice (1-2): {Style.RESET_ALL}")
+            
+            if choice in ["1", "2"]:
+                return choice
+            
+            ColorPrinter.print("→ Please enter a valid option (1-2)", Fore.YELLOW)
+
+    @staticmethod
     def get_thread_count():
         """
         Get the number of threads from user input.
@@ -76,6 +97,29 @@ class UserInterface:
             choice = input(f"{Fore.CYAN}\nEnter your choice (1-6): {Style.RESET_ALL}")
             
             if choice in ["1", "2", "3", "4", "5", "6"]:
+                return choice
+            
+            ColorPrinter.print("\nInvalid choice. Please try again.", Fore.YELLOW)
+
+    @staticmethod
+    def get_modpack_choice():
+        """
+        Get modpack creator option from user.
+        
+        Returns:
+            str: User's choice ('1'-'4')
+        """
+        while True:
+            ColorPrinter.print("\n╭─── Modpack Creator Options ───╮", Fore.CYAN)
+            ColorPrinter.print("│ 1. Create server-side pack    │", Fore.CYAN)
+            ColorPrinter.print("│ 2. Create client-side pack    │", Fore.CYAN)
+            ColorPrinter.print("│ 3. Create both packs          │", Fore.CYAN)
+            ColorPrinter.print("│ 4. Return to main menu        │", Fore.CYAN)
+            ColorPrinter.print("╰────────────────────────────────╯", Fore.CYAN)
+            
+            choice = input(f"{Fore.CYAN}\nEnter your choice (1-4): {Style.RESET_ALL}")
+            
+            if choice in ["1", "2", "3", "4"]:
                 return choice
             
             ColorPrinter.print("\nInvalid choice. Please try again.", Fore.YELLOW)
